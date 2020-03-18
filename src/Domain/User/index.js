@@ -128,25 +128,25 @@ module.exports = class UserDomain {
     const userCreated = await User.create(user, { transaction });
     // const userCreated = await User.build(user, { transaction });
 
-    await authy.register_user(
-      user.email,
-      user.celular,
-      "55",
-      promisify(function(err, res) {
-        console.log("res", res);
-        if (res && res.success) {
-          userCreated.update({ idAuthy: res.user.id });
-          authy.request_sms(res.user.id, function(err, res) {
-            console.log(res.message);
-          });
-        } else {
-          errors = true;
-          field.idAuthy = true;
-          message.idAuthy = "idAuthy cannot null";
-          throw new FieldValidationError([{ field, message }]);
-        }
-      })
-    );
+    // await authy.register_user(
+    //   user.email,
+    //   user.celular,
+    //   "55",
+    //   promisify(function(err, res) {
+    //     console.log("res", res);
+    //     if (res && res.success) {
+    //       userCreated.update({ idAuthy: res.user.id });
+    //       authy.request_sms(res.user.id, function(err, res) {
+    //         console.log(res.message);
+    //       });
+    //     } else {
+    //       errors = true;
+    //       field.idAuthy = true;
+    //       message.idAuthy = "idAuthy cannot null";
+    //       throw new FieldValidationError([{ field, message }]);
+    //     }
+    //   })
+    // );
 
     return userCreated;
 
@@ -203,6 +203,8 @@ module.exports = class UserDomain {
   async check(bodyData, options = {}) {
     const { transaction = null } = options;
 
+    console.log(bodyData);
+
     const BodyNotHasProps = props => R.not(R.has(props, bodyData));
 
     let error = false;
@@ -244,26 +246,39 @@ module.exports = class UserDomain {
       field.id = true;
       message.id = "id invalid";
     } else {
-      authy.verify(user.idAuthy, key, function(err, res) {
+      authy.verify(user.idAuthy, key, async function(err, res) {
         console.log(res);
         if (res !== "Token is valid") {
           error = true;
           field.key = true;
           message.key = "key invalid";
+          throw new FieldValidationError([{ field, message }]);
+        } else {
+          const userUpdate = {
+            ...JSON.parse(JSON.stringify(user)),
+            checked: true
+          };
+          user.update(userUpdate, {});
         }
       });
     }
 
+    await new Promise(function(resolve, reject) {
+      setTimeout(function() {
+        resolve();
+      }, 3000);
+    });
+
+    // const userUpdate = {
+    //   ...JSON.parse(JSON.stringify(user)),
+    //   checked: false
+    // };
+
+    // await user.update(userUpdate, { transaction });
+
     if (error) {
       throw new FieldValidationError([{ field, message }]);
     }
-
-    const userUpdate = {
-      ...JSON.parse(JSON.stringify(user)),
-      checked: true
-    };
-
-    await user.update(userUpdate, { transaction });
 
     const response = await User.findByPk(id, {
       transaction
