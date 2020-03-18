@@ -1,0 +1,15 @@
+version: "3.1"
+
+services:
+  db_website:
+    image: postgres:11.2-alpine
+    environment:
+      POSTGRES_PASSWORD: web
+      POSTGRES_DB: web
+    ports:
+      - 5442:5432
+    volumes:
+      - db_website:/var/lib/postgresql/data
+
+volumes:
+  db_website:
