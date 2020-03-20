@@ -3,7 +3,8 @@ const UserController = require("../../Controllers/User");
 
 routes.post("", UserController.create);
 routes.post("/check", UserController.check);
-// routes.put("/troll", UserController.troll);
+routes.put("", UserController.update);
+routes.put("/password", UserController.updatePassword);
 // routes.get("", UserController.getAll);
 // routes.get("/verifyTroll", UserController.verifyTroll);
 

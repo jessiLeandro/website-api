@@ -147,6 +147,7 @@ module.exports = class UserDomain {
     //     }
     //   })
     // );
+    // throw new FieldValidationError([{ field, message }]);
 
     return userCreated;
 
@@ -241,24 +242,31 @@ module.exports = class UserDomain {
       transaction
     });
 
+    // authy.request_sms(user.idAuthy, function(err, res) {
+    //   console.log(res.message);
+    // });
+
+    // throw new FieldValidationError([{ field, message }]);
+
+    console.log(user.idAuthy, key);
     if (!user) {
       error = true;
       field.id = true;
       message.id = "id invalid";
     } else {
-      authy.verify(user.idAuthy, key, async function(err, res) {
+      authy.verify(user.idAuthy, key, function(err, res) {
         console.log(res);
-        if (res !== "Token is valid") {
-          error = true;
-          field.key = true;
-          message.key = "key invalid";
-          throw new FieldValidationError([{ field, message }]);
-        } else {
+        console.log(err);
+        if (res !== undefined && err === null) {
           const userUpdate = {
             ...JSON.parse(JSON.stringify(user)),
             checked: true
           };
           user.update(userUpdate, {});
+        } else {
+          error = true;
+          field.key = true;
+          message.key = "key invalid";
         }
       });
     }
@@ -269,13 +277,6 @@ module.exports = class UserDomain {
       }, 3000);
     });
 
-    // const userUpdate = {
-    //   ...JSON.parse(JSON.stringify(user)),
-    //   checked: false
-    // };
-
-    // await user.update(userUpdate, { transaction });
-
     if (error) {
       throw new FieldValidationError([{ field, message }]);
     }
@@ -285,5 +286,112 @@ module.exports = class UserDomain {
     });
 
     return response;
+  }
+
+  async update(body, options = {}) {
+    const { transaction = null } = options;
+
+    const user = await User.findByPk(body.id, { transaction });
+
+    if (!user) {
+      throw new FieldValidationError([
+        { field: { id: true }, message: { id: "user not found" } }
+      ]);
+    }
+
+    const userUpdate = R.omit(["id"], body);
+
+    const bodyNotHasProp = prop => R.not(R.has(prop, userUpdate));
+
+    let errors = false;
+
+    const field = {
+      name: false
+    };
+    const message = {
+      name: ""
+    };
+
+    if (bodyNotHasProp("name") || !userUpdate.name) {
+      errors = true;
+      field.name = true;
+      message.name = "name cannot null";
+    }
+
+    if (bodyNotHasProp("cpf") || !userUpdate.cpf) {
+      errors = true;
+      field.cpf = true;
+      message.cpf = "cpf cannot null";
+    } else if (!Cpf.isValid(userUpdate.cpf.replace(/\D/gi, ""))) {
+      errors = true;
+      field.cpf = true;
+      message.cpf = "cpf invalid";
+    } else {
+      const userAlreadyRegistered = await User.findOne({
+        attributes: ["id", "cpf"],
+        where: { cpf: user.cpf.replace(/\D/gi, "") },
+        transaction
+      });
+
+      if (userAlreadyRegistered && userAlreadyRegistered.cpf !== user.cpf) {
+        errors = true;
+        field.cpf = true;
+        message.cpf = "already registered";
+      }
+    }
+    if (errors) {
+      throw new FieldValidationError([{ field, message }]);
+    }
+
+    return await user.update(userUpdate, { transaction });
+  }
+
+  async updatePassword(body, options = {}) {
+    const { transaction = null } = options;
+
+    console.log(body);
+
+    const user = await User.findByPk(body.id, { transaction });
+
+    if (!user) {
+      throw new FieldValidationError([
+        { field: { id: true }, message: { id: "user not found" } }
+      ]);
+    }
+
+    const bodyNotHasProp = prop => R.not(R.has(prop, body));
+
+    let errors = false;
+
+    const field = {
+      password: false,
+      newPassword: false
+    };
+    const message = {
+      password: "",
+      newPassword: ""
+    };
+
+    if (bodyNotHasProp("password") || !body.password) {
+      errors = true;
+      field.password = true;
+      message.password = "password cannot null";
+    } else if (!(await user.checkPassword(body.password))) {
+      errors = true;
+      field.password = true;
+      message.password = "invalid password";
+    }
+
+    if (bodyNotHasProp("newPassword") || !body.newPassword) {
+      errors = true;
+      field.newPassword = true;
+      message.newPassword = "newPassword cannot null";
+    }
+
+    if (errors) {
+      throw new FieldValidationError([{ field, message }]);
+    }
+
+    return await user.update({ password: body.newPassword }, { transaction });
   }
 };

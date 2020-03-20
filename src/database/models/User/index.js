@@ -34,11 +34,17 @@ module.exports = (sequelize, DataTypes) => {
     },
     cpf: {
       type: Sequelize.STRING,
-      allowNull: false
+      allowNull: false,
+      set(value) {
+        this.setDataValue("cpf", value.replace(/\D/gi, ""));
+      }
     },
     celular: {
       type: Sequelize.STRING,
-      allowNull: false
+      allowNull: false,
+      set(value) {
+        this.setDataValue("cpf", value.replace(/\D/gi, ""));
+      }
     },
     permissionToNotification: {
       type: Sequelize.BOOLEAN,
